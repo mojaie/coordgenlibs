@@ -50,3 +50,12 @@ extern "C" EXPORT_COORDGEN bool hasStereochemistryDisplay(
 );
 extern "C" EXPORT_COORDGEN bool isWedge(sketcherMinimizerBond* bond);
 extern "C" EXPORT_COORDGEN bool isReversed(sketcherMinimizerBond* bond);
+
+// Releases everything a molecule from getSketcherMinimizer() owns: its atoms and bonds, and, if
+// runGenerateCoordinates() was called, the minimizer with its fragments and molecules. Call it
+// once the results have been read. The pointer is invalid afterwards. A pointer that was not
+// returned by getSketcherMinimizer(), or was already freed, is ignored.
+extern "C" EXPORT_COORDGEN void freeSketcherMinimizer(
+    sketcherMinimizerMolecule* min_mol
+);
+

@@ -1,9 +1,29 @@
 
 #include "minimizerInterfaceC.h"
 
+#include <map>
+#include <mutex>
+
+
+// Ownership, as the code stands:
+//  * getSketcherMinimizer() returns a molecule the caller fills with setAtom/setBond. Until it is
+//    run, the molecule owns its atoms and bonds.
+//  * runGenerateCoordinates() hands it to a sketcherMinimizer. initialize() takes over the atoms
+//    and bonds, splitIntoMolecules() puts the molecule itself into m_molecules, and
+//    ~sketcherMinimizer -> clear() deletes all of them. The minimizer must therefore stay alive
+//    while the caller reads results (getAtomX, isWedge, ...), and be deleted exactly once, after.
+//  * freeSketcherMinimizer() does that. Every molecule handed out is tracked here, so freeing a
+//    pointer twice, or one we never handed out, does nothing.
+struct MinimizerEntry {
+    sketcherMinimizer* minimizer;  // null until runGenerateCoordinates()
+};
+static std::mutex g_mutex;
+static std::map<sketcherMinimizerMolecule*, MinimizerEntry> g_entries;
 
 sketcherMinimizerMolecule* getSketcherMinimizer() {
     sketcherMinimizerMolecule* min_mol = new sketcherMinimizerMolecule();
+    std::lock_guard<std::mutex> lock(g_mutex);
+    g_entries[min_mol] = MinimizerEntry{nullptr};
     return min_mol;
 }
 
@@ -66,9 +86,42 @@ void setStereoBond(
 }
 
 void runGenerateCoordinates(sketcherMinimizerMolecule* min_mol) {
+    {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        auto it = g_entries.find(min_mol);
+        // Unknown molecule, or already run: a second minimizer would take over atoms the first
+        // one still owns, so do nothing.
+        if (it == g_entries.end() || it->second.minimizer != nullptr) {
+            return;
+        }
+    }
     sketcherMinimizer* minimizer = new sketcherMinimizer();
     minimizer->initialize(min_mol);
     minimizer->runGenerateCoordinates();
+    std::lock_guard<std::mutex> lock(g_mutex);
+    g_entries[min_mol].minimizer = minimizer;
+}
+
+void freeSketcherMinimizer(sketcherMinimizerMolecule* min_mol) {
+    MinimizerEntry entry{nullptr};
+    {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        auto it = g_entries.find(min_mol);
+        if (it == g_entries.end()) {
+            return;  // not ours, or already freed
+        }
+        entry = it->second;
+        g_entries.erase(it);
+    }
+    if (entry.minimizer != nullptr) {
+        delete entry.minimizer;  // atoms, bonds, fragments and min_mol itself
+    } else {
+        // Never run: the molecule still owns its atoms and bonds, but
+        // ~sketcherMinimizerMolecule only frees rings.
+        for (auto* a : min_mol->getAtoms()) delete a;
+        for (auto* b : min_mol->getBonds()) delete b;
+        delete min_mol;
+    }
 }
 
 float getAtomX(sketcherMinimizerAtom* atom) {
