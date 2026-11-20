@@ -1,10 +1,12 @@
 
 #include "minimizerInterfaceC.h"
 
-
+// Ownership: getSketcherMinimizer() returns a molecule the caller fills with setAtom/setBond.
+// runGenerateCoordinates() hands it to a new sketcherMinimizer, which then owns the atoms, bonds
+// and the molecule itself, and returns it. The caller reads the results (getAtomX, isWedge, ...)
+// and then calls freeSketcherMinimizer(), which frees all of it.
 sketcherMinimizerMolecule* getSketcherMinimizer() {
-    sketcherMinimizerMolecule* min_mol = new sketcherMinimizerMolecule();
-    return min_mol;
+    return new sketcherMinimizerMolecule();
 }
 
 sketcherMinimizerAtom* setAtom(
@@ -65,10 +67,15 @@ void setStereoBond(
     bond->setAbsoluteStereoFromStereoInfo();
 }
 
-void runGenerateCoordinates(sketcherMinimizerMolecule* min_mol) {
+sketcherMinimizer* runGenerateCoordinates(sketcherMinimizerMolecule* min_mol) {
     sketcherMinimizer* minimizer = new sketcherMinimizer();
     minimizer->initialize(min_mol);
     minimizer->runGenerateCoordinates();
+    return minimizer;
+}
+
+void freeSketcherMinimizer(sketcherMinimizer* minimizer) {
+    delete minimizer;
 }
 
 float getAtomX(sketcherMinimizerAtom* atom) {

@@ -38,7 +38,7 @@ extern "C" EXPORT_COORDGEN void setStereoBond(
     bool isCis
 );
 
-extern "C" EXPORT_COORDGEN void runGenerateCoordinates(
+extern "C" EXPORT_COORDGEN sketcherMinimizer* runGenerateCoordinates(
     sketcherMinimizerMolecule* min_mol
 );
 
@@ -50,3 +50,9 @@ extern "C" EXPORT_COORDGEN bool hasStereochemistryDisplay(
 );
 extern "C" EXPORT_COORDGEN bool isWedge(sketcherMinimizerBond* bond);
 extern "C" EXPORT_COORDGEN bool isReversed(sketcherMinimizerBond* bond);
+
+// Deletes the minimizer returned by runGenerateCoordinates(), and with it the atoms, bonds,
+// fragments and molecule it owns. Call it once, after the results have been read.
+extern "C" EXPORT_COORDGEN void freeSketcherMinimizer(
+    sketcherMinimizer* minimizer
+);
